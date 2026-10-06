@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>
+<title>Hotel Bill Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Libre+Baskerville:wght@400;700&display=swap">
+<style>
+/* Layout: form panel on the left, live A4 bill on the right; stacks to one column on phones. */
+:root {
+  --bg: #eceff2;
+  --surface: #ffffff;
+  --fg: #14202b;
+  --muted: #5a6a79;
+  --line: #d3dae1;
+  --accent: #0f4c5c;
+  --accent-fg: #ffffff;
+  --accent-soft: #dcebee;
+  --warn: #9a5b00;
+  --paper: #ffffff;
+  --paper-head: #eeeeee;
+  --ink: #141414;
+  --paper-line: #2a2a2a;
+  --paper-muted: #5c5c5c;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  --font-bill: "Libre Baskerville", Georgia, "Times New Roman", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141a; --surface: #16212a; --fg: #e6edf2; --muted: #93a4b3; --line: #2a3946;
+    --accent: #5fb3c6; --accent-fg: #06222a; --accent-soft: #17323b; --warn: #e0a84f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141a; --surface: #16212a; --fg: #e6edf2; --muted: #93a4b3; --line: #2a3946;
+  --accent: #5fb3c6; --accent-fg: #06222a; --accent-soft: #17323b; --warn: #e0a84f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.45;
+  padding-inline: 16px;
+  padding-block: 20px 40px;
+}
+.app { max-width: 1280px; margin-inline: auto; display: flex; flex-direction: column; gap: 20px; }
+
+/* top bar */
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.top h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+.top p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn {
+  font: inherit; font-weight: 500; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+  padding: 8px 14px; border-radius: 6px;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.warn { border-color: var(--warn); color: var(--warn); }
+.btn:focus-visible, input:focus-visible, select:focus-visible, .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* layout */
+.layout { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 960px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.panel { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card h2 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.card .note { margin: -4px 0 0; font-size: 12px; color: var(--muted); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.grid .wide { grid-column: 1 / -1; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 500; color: var(--muted); min-width: 0; }
+input, select {
+  font: inherit; color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; width: 100%; min-width: 0;
+}
+input[type="number"] { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.hint { font-size: 12px; color: var(--warn); min-height: 0; margin: 0; }
+.hint:empty { display: none; }
+
+/* charge rows editor */
+.rows-wrap { overflow-x: auto; }
+.rows { border-collapse: collapse; width: 100%; min-width: 520px; }
+.rows th { font-size: 11px; font-weight: 600; color: var(--muted); text-align: left; padding: 0 4px 6px; white-space: nowrap; }
+.rows td { padding: 3px 3px; }
+.rows input { padding: 6px 6px; font-size: 13px; }
+.icon-btn { font: inherit; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--muted); cursor: pointer; line-height: 1; }
+.icon-btn:hover { color: var(--warn); border-color: var(--warn); }
+.row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* live bill */
+.preview { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.preview-label { font-size: 12px; color: var(--muted); }
+.paper-scroll { overflow-x: auto; padding-bottom: 4px; }
+.paper {
+  background: var(--paper); color: var(--ink);
+  font-size: 12px; line-height: 1.45;
+  padding: 26px 28px; min-width: 720px; max-width: 840px; margin-inline: auto;
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 10px 28px rgba(0,0,0,.10);
+}
+.b-head { display: flex; align-items: center; gap: 16px; padding-bottom: 12px; border-bottom: 2px solid var(--ink); }
+.b-mark { flex: none; width: 56px; height: 56px; border: 2px solid var(--ink); border-radius: 50%; display: grid; place-items: center; font-family: var(--font-bill); font-weight: 700; font-size: 20px; letter-spacing: 0.02em; }
+.b-name { margin: 0; font-family: var(--font-bill); font-size: 26px; font-weight: 700; line-height: 1.15; text-wrap: balance; }
+.b-sub { margin: 3px 0 0; font-size: 11.5px; color: var(--paper-muted); }
+.b-title { text-align: center; font-weight: 600; letter-spacing: 0.22em; font-size: 11px; padding: 6px 0; border-bottom: 1px solid var(--paper-line); }
+.b-meta { display: grid; grid-template-columns: 1fr 1fr 1fr 1.2fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--paper-line); }
+.b-meta div { display: flex; flex-direction: row; align-items: baseline; gap: 6px; }
+.b-meta span, .kv span { font-size: 12px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.b-meta b { font-family: var(--font-num); font-weight: 500; font-size: 13px; }
+.guest { display: grid; grid-template-columns: 1.4fr 1fr; gap: 6px 24px; padding: 10px 0 12px; }
+.guest .col { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.kv { display: flex; flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.kv b { font-weight: 500; overflow-wrap: anywhere; }
+.kv .mono { font-family: var(--font-num); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.charges { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.charges th, .charges td { border: 1px solid var(--paper-line); padding: 5px 6px; }
+.charges th { background: var(--paper-head); font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; text-align: right; white-space: nowrap; }
+.charges th:first-child, .charges td:first-child { text-align: left; }
+.charges th small { display: block; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--paper-muted); }
+.charges tbody td { border-top: none; border-bottom: none; }
+.charges tr.fill td { height: 230px; padding: 0; }
+.charges td { text-align: right; font-family: var(--font-num); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.charges td:first-child { font-family: var(--font-ui); font-size: 12px; white-space: nowrap; }
+.charges tfoot td { font-weight: 600; background: var(--paper-head); }
+.words { margin: 10px 0 0; padding: 7px 8px; border: 1px solid var(--paper-line); font-size: 12px; }
+.words b { font-weight: 600; }
+.settle { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; margin-top: 12px; align-items: start; }
+.bank { font-size: 11.5px; line-height: 1.6; text-transform: uppercase; }
+.bank b { font-weight: 500; }
+.bank .mono { font-family: var(--font-num); }
+.sum { width: 100%; border-collapse: collapse; }
+.sum td { border: 1px solid var(--paper-line); padding: 5px 8px; }
+.sum td:last-child { text-align: right; font-family: var(--font-num); font-variant-numeric: tabular-nums; width: 38%; }
+.sum td:first-child { font-weight: 500; }
+.sum tr.strong td { font-weight: 700; background: var(--paper-head); }
+.sign { display: flex; justify-content: space-between; gap: 16px; margin-top: 46px; font-size: 11.5px; }
+.sign div { border-top: 1px solid var(--paper-line); padding-top: 4px; min-width: 150px; }
+.sign div:last-child { text-align: right; }
+.jur { margin: 14px 0 0; padding-top: 8px; border-top: 1px solid var(--paper-line); text-align: center; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--paper-muted); }
+
+@media (max-width: 520px) {
+  .top h1 { font-size: 19px; }
+}
+@media print {
+  @page { size: A4; margin: 10mm; }
+  body { background: #fff; padding: 0; }
+  .no-print { display: none !important; }
+  .layout { display: block; }
+  .paper-scroll { overflow: visible; }
+  .paper { min-width: 0; max-width: none; border: none; box-shadow: none; padding: 0; }
+}
+</style>
+
+<div class="app">
+  <header class="top no-print">
+    <div>
+      <h1>Hotel Bill Generator</h1>
+      <p id="subtitle">GST guest bill with SGST and CGST worked out for you</p>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn" id="newBill">New bill</button>
+      <button type="button" class="btn primary" id="printBtn">Print bill</button><p class="hint" id="printNote" hidden style="flex-basis:100%;margin:0">The print window did not open here. Download this file and open it in Chrome or Edge, then click Print bill again (or press Ctrl+P).</p>
+    </div>
+  </header>
+
+  <main class="layout">
+    <div class="panel no-print">
+
+      <section class="card" aria-labelledby="h-hotel">
+        <h2 id="h-hotel">Hotel details</h2>
+        <p class="note">Enter your own hotel's details. They are remembered in this browser.</p>
+        <div class="grid">
+          <label class="wide" for="hName">Hotel name<input id="hName" type="text" value="Your Hotel Name" autocomplete="off"></label>
+          <label class="wide" for="hAddr">Address<input id="hAddr" type="text" value="Street, Locality, City - PIN" autocomplete="off"></label>
+          <label for="hPhone">Phone<input id="hPhone" type="text" value="0000-0000000" autocomplete="off"></label>
+          <label for="hGst">Hotel GST No.<input id="hGst" type="text" value="27AAAAA0000A1Z5" maxlength="15" autocomplete="off"></label>
+          <label for="bBank">Bank name<input id="bBank" type="text" value="Your Bank Name" autocomplete="off"></label>
+          <label for="bBranch">Bank branch<input id="bBranch" type="text" value="Branch name" autocomplete="off"></label>
+          <label for="bAcc">Account no.<input id="bAcc" type="text" value="00000000000" autocomplete="off"></label>
+          <label for="bIfsc">IFSC code<input id="bIfsc" type="text" value="ABCD0123456" maxlength="11" autocomplete="off"></label>
+          <label class="wide" for="hCity">Jurisdiction city<input id="hCity" type="text" value="Your City" autocomplete="off"></label>
+        </div>
+        <p class="hint" id="hGstHint"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-guest">
+        <h2 id="h-guest">Bill and guest</h2>
+        <div class="grid">
+          <label for="regNo">Reg. No.<input id="regNo" type="text" value="0001" autocomplete="off"></label>
+          <label for="roomNo">Room No.<input id="roomNo" type="text" value="101" autocomplete="off"></label>
+          <label for="billNo">Bill No.<input id="billNo" type="text" value="0001" autocomplete="off"></label>
+          <label for="billDate">Bill date<input id="billDate" type="date"></label>
+          <label class="wide" for="gName">Name of guest<input id="gName" type="text" value="Sample Guest" autocomplete="off"></label>
+          <label class="wide" for="company">Company / address<input id="company" type="text" value="Sample Company Private Limited" autocomplete="off"></label>
+          <label for="gCity">City<input id="gCity" type="text" value="Pune" autocomplete="off"></label>
+          <label for="pax">PAX<input id="pax" type="number" min="1" step="1" value="1"></label>
+          <label class="wide" for="custGst">Customer GST No. (optional)<input id="custGst" type="text" value="" maxlength="15" placeholder="15-character GSTIN" autocomplete="off"></label>
+        </div>
+        <p class="hint" id="custGstHint"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-stay">
+        <h2 id="h-stay">Stay and charges</h2>
+        <div class="grid">
+          <label for="arrDate">Arrival date<input id="arrDate" type="date"></label>
+          <label for="arrTime">Arrival time<input id="arrTime" type="time" value="14:00"></label>
+          <label for="depDate">Departure date<input id="depDate" type="date"></label>
+          <label for="depTime">Departure time<input id="depTime" type="time" value="11:00"></label>
+        </div>
+        <p class="hint" id="dateHint"></p>
+        <div class="grid">
+          <label for="nightRate">Room rate per night (Rs)<input id="nightRate" type="number" min="0" step="0.01" value="1500"></label>
+          <label for="rentMode">Rate and rent entries are
+            <select id="rentMode">
+              <option value="incl">Inclusive of GST</option>
+              <option value="excl">Before GST</option>
+            </select>
+          </label>
+          <label for="taxRate">SGST and CGST, each (%)<input id="taxRate" type="number" min="0" step="0.01" value="2.5"></label>
+        </div>
+        <p class="note">GST is charged on rent and extra pax. Food, laundry and other charges are added as entered.</p>
+        <div class="rows-wrap">
+          <table class="rows">
+            <thead><tr><th>Date</th><th>Rent</th><th>Extra pax</th><th>Food</th><th>Laundry</th><th>Other</th><th><span class="sr-only" style="position:absolute;left:-9999px">Remove</span></th></tr></thead>
+            <tbody id="rowsBody"></tbody>
+          </table>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="btn" id="fillNights">Fill nights from stay dates</button>
+          <button type="button" class="btn" id="addRow">Add row</button>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="h-settle">
+        <h2 id="h-settle">Settlement</h2>
+        <div class="grid">
+          <label for="discount">Discount (Rs)<input id="discount" type="number" min="0" step="0.01" value="0"></label>
+          <label for="advance">Advance paid (Rs)<input id="advance" type="number" min="0" step="0.01" value="1500"></label>
+        </div>
+        <p class="note">The bill amount is rounded to the nearest rupee. If the advance is more than the bill, the difference shows as refund.</p>
+      </section>
+    </div>
+
+    <section class="preview" aria-label="Bill preview">
+      <div class="preview-label no-print">Live bill preview</div>
+      <div class="paper-scroll">
+        <article class="paper" id="bill"></article>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+/* ---------- pure calculation (no DOM) ---------- */
+function r2(x) { return Math.round((x + Number.EPSILON) * 100) / 100; }
+function numOf(v) { var n = parseFloat(v); return isFinite(n) && n > 0 ? n : 0; }
+
+var ONES = ['', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN'];
+var TENS = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
+function below1000(n) {
+  var s = '';
+  if (n >= 100) { s += ONES[Math.floor(n / 100)] + ' HUNDRED'; n = n % 100; if (n) s += ' '; }
+  if (n >= 20) { s += TENS[Math.floor(n / 10)]; if (n % 10) s += ' ' + ONES[n % 10]; }
+  else if (n > 0) { s += ONES[n]; }
+  return s;
+}
+function wordsIndian(n) {
+  n = Math.floor(n);
+  if (n === 0) return 'ZERO';
+  var parts = [];
+  var cr = Math.floor(n / 1e7); n = n % 1e7;
+  var lk = Math.floor(n / 1e5); n = n % 1e5;
+  var th = Math.floor(n / 1e3); n = n % 1e3;
+  if (cr) parts.push(below1000(cr) + ' CRORE');
+  if (lk) parts.push(below1000(lk) + ' LAKH');
+  if (th) parts.push(below1000(th) + ' THOUSAND');
+  if (n) parts.push(below1000(n));
+  return parts.join(' ');
+}
+
+function calcBill(o) {
+  var rate = Math.max(0, o.taxPercent || 0) / 100;
+  var rows = o.rows.map(function (r) {
+    var rentIn = numOf(r.rent), epax = numOf(r.epax), food = numOf(r.food), laundry = numOf(r.laundry), other = numOf(r.other);
+    var rentBase = o.inclusive ? rentIn / (1 + 2 * rate) : rentIn;
+    var rent = r2(rentBase);
+    var sgst = r2((rentBase + epax) * rate);
+    var cgst = sgst;
+    var total = r2(rent + epax + sgst + cgst + food + laundry + other);
+    return { date: r.date, rent: rent, epax: epax, sgst: sgst, cgst: cgst, food: food, laundry: laundry, other: other, total: total };
+  });
+  var tot = {};
+  ['rent', 'epax', 'sgst', 'cgst', 'food', 'laundry', 'other', 'total'].forEach(function (k) {
+    tot[k] = r2(rows.reduce(function (a, r) { return a + r[k]; }, 0));
+  });
+  var discount = numOf(o.discount), advance = numOf(o.advance);
+  var gross = Math.max(0, r2(tot.total - discount));
+  var billAmt = Math.round(gross);
+  var roundOff = r2(billAmt - gross);
+  var balance = billAmt - advance;
+  var net = balance > 0 ? r2(balance) : 0;
+  var refund = balance < 0 ? r2(-balance) : 0;
+  return { rows: rows, tot: tot, discount: discount, gross: gross, roundOff: roundOff, billAmt: billAmt, advance: advance, net: net, refund: refund, words: wordsIndian(billAmt) + ' RUPEES ONLY.' };
+}
+
+/* ---------- DOM ---------- */
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var money = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  var m = function (n) { return money.format(n); };
+  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  var isoOf = function (d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+  var parseIso = function (s) { var p = (s || '').split('-'); return p.length === 3 ? new Date(+p[0], +p[1] - 1, +p[2]) : null; };
+  var fmtDate = function (s) { var p = (s || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : ''; };
+  var GST_RE = /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+
+  var PERSIST = ['hName', 'hAddr', 'hPhone', 'hGst', 'bBank', 'bBranch', 'bAcc', 'bIfsc', 'hCity', 'taxRate', 'rentMode'];
+  var STORE_KEY = 'hotel-bill-generator-v1';
+
+  var today = new Date();
+  var yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  $('billDate').value = isoOf(today);
+  $('arrDate').value = isoOf(yesterday);
+  $('depDate').value = isoOf(today);
+
+  var state = { rows: [{ date: isoOf(yesterday), rent: '1500', epax: '', food: '', laundry: '', other: '' }] };
+
+  try {
+    var saved = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+    PERSIST.forEach(function (id) { if (typeof saved[id] === 'string') $(id).value = saved[id]; });
+  } catch (e) { /* storage unavailable */ }
+
+  function save() {
+    try {
+      var o = {};
+      PERSIST.forEach(function (id) { o[id] = $(id).value; });
+      localStorage.setItem(STORE_KEY, JSON.stringify(o));
+    } catch (e) { /* ignore */ }
+  }
+
+  function renderRows() {
+    var keys = ['rent', 'epax', 'food', 'laundry', 'other'];
+    var names = { rent: 'Rent', epax: 'Extra pax', food: 'Food', laundry: 'Laundry', other: 'Other' };
+    $('rowsBody').innerHTML = state.rows.map(function (r, i) {
+      return '<tr><td><input id="r' + i + '_date" type="date" data-i="' + i + '" data-k="date" value="' + esc(r.date) + '" aria-label="Date, row ' + (i + 1) + '"></td>' +
+        keys.map(function (k) {
+          return '<td><input id="r' + i + '_' + k + '" type="number" inputmode="decimal" min="0" step="0.01" data-i="' + i + '" data-k="' + k + '" value="' + esc(r[k]) + '" aria-label="' + names[k] + ', row ' + (i + 1) + '"></td>';
+        }).join('') +
+        '<td><button type="button" class="icon-btn" data-del="' + i + '" aria-label="Remove row ' + (i + 1) + '">&times;</button></td></tr>';
+    }).join('');
+  }
+
+  function renderBill() {
+    var taxPercent = parseFloat($('taxRate').value) || 0;
+    var c = calcBill({
+      rows: state.rows, taxPercent: taxPercent, inclusive: $('rentMode').value === 'incl',
+      discount: $('discount').value, advance: $('advance').value
+    });
+    var rateLabel = (+taxPercent.toFixed(2)) + '%';
+    $('subtitle').textContent = 'GST guest bill. SGST and CGST at ' + rateLabel + ' each, worked out for you.';
+
+    var hn = $('hName').value.trim() || 'Hotel name';
+    var initials = hn.split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w[0].toUpperCase(); }).join('');
+    var sub1 = [$('hAddr').value.trim(), $('hPhone').value.trim() ? 'Ph: ' + $('hPhone').value.trim() : ''].filter(Boolean).join(', ');
+    var gstin = $('hGst').value.trim();
+    var arrT = $('arrTime').value, depT = $('depTime').value;
+
+    var bankLines = [];
+    if ($('bBank').value.trim()) bankLines.push('<div>BANK NAME : <b>' + esc($('bBank').value.trim()) + '</b></div>');
+    if ($('bBranch').value.trim()) bankLines.push('<div>BANK BRANCH : <b>' + esc($('bBranch').value.trim()) + '</b></div>');
+    if ($('bAcc').value.trim()) bankLines.push('<div>A/C NO. : <b class="mono">' + esc($('bAcc').value.trim()) + '</b></div>');
+    if ($('bIfsc').value.trim()) bankLines.push('<div>IFSC CODE : <b class="mono">' + esc($('bIfsc').value.trim().toUpperCase()) + '</b></div>');
+
+    var body = c.rows.map(function (r) {
+      return '<tr><td>' + esc(fmtDate(r.date)) + '</td><td>' + m(r.rent) + '</td><td>' + m(r.epax) + '</td><td>' + m(r.sgst) + '</td><td>' + m(r.cgst) + '</td><td>' + m(r.food) + '</td><td>' + m(r.laundry) + '</td><td>' + m(r.other) + '</td><td>' + m(r.total) + '</td></tr>';
+    }).join('');
+
+    var t = c.tot;
+    var html =
+      '<div class="b-head"><div class="b-mark" aria-hidden="true">' + esc(initials) + '</div><div>' +
+      '<h2 class="b-name">' + esc(hn) + '</h2>' +
+      (sub1 ? '<p class="b-sub">' + esc(sub1) + '</p>' : '') +
+      (gstin ? '<p class="b-sub">GST No.: ' + esc(gstin.toUpperCase()) + '</p>' : '') +
+      '</div></div>' +
+            '<div class="b-meta"><div><span>Reg.No.:</span><b>' + esc($('regNo').value) + '</b></div><div><span>Room No.:</span><b>' + esc($('roomNo').value) + '</b></div><div><span>Bill No.:</span><b>' + esc($('billNo').value) + '</b></div><div><span>Bill Date :</span><b>' + esc(fmtDate($('billDate').value)) + '</b></div></div>' +
+      '<div class="guest"><div class="col">' +
+      '<div class="kv"><span>Name of Guest :</span><b>' + esc($('gName').value) + '</b></div>' +
+      '<div class="kv"><span>Company/Address :</span><b>' + esc($('company').value) + '</b></div>' +
+      '<div class="two"><div class="kv"><span>City :</span><b>' + esc($('gCity').value) + '</b></div><div class="kv"><span>PAX :</span><b class="mono">' + esc($('pax').value) + '</b></div></div>' +
+      '<div class="kv"><span>Customer GST No. :</span><b class="mono">' + esc($('custGst').value.trim().toUpperCase()) + '</b></div>' +
+      '</div><div class="col">' +
+      '<div class="kv"><span>Arrival Date :</span><b class="mono">' + esc(fmtDate($('arrDate').value)) + '</b><span>Time :</span><b class="mono">' + esc(arrT) + '</b></div>' +
+      '<div class="kv"><span>Departure Date :</span><b class="mono">' + esc(fmtDate($('depDate').value)) + '</b><span>Time :</span><b class="mono">' + esc(depT) + '</b></div>' +
+      '</div></div>' +
+      '<table class="charges"><thead><tr><th>Date</th><th>Rent</th><th>Epax</th><th>SGST<small>' + rateLabel + '</small></th><th>CGST<small>' + rateLabel + '</small></th><th>Food</th><th>Laundry</th><th>Other</th><th>Total</th></tr></thead>' +
+      '<tbody>' + body + '<tr class="fill"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></tbody>' +
+      '<tfoot><tr><td>Total</td><td>' + m(t.rent) + '</td><td>' + m(t.epax) + '</td><td>' + m(t.sgst) + '</td><td>' + m(t.cgst) + '</td><td>' + m(t.food) + '</td><td>' + m(t.laundry) + '</td><td>' + m(t.other) + '</td><td>' + m(t.total) + '</td></tr></tfoot></table>' +
+      '<p class="words"><b>In words Rs:</b> ' + esc(c.words) + '</p>' +
+      '<div class="settle"><div class="bank">' + bankLines.join('') + '</div>' +
+      '<table class="sum"><tbody>' +
+      '<tr><td>Discount :</td><td>' + m(c.discount) + '</td></tr>' +
+      (c.roundOff !== 0 ? '<tr><td>Round off :</td><td>' + (c.roundOff > 0 ? '+' : '-') + m(Math.abs(c.roundOff)) + '</td></tr>' : '') +
+      '<tr class="strong"><td>Bill Amount :</td><td>' + m(c.billAmt) + '</td></tr>' +
+      '<tr><td>Advance :</td><td>' + m(c.advance) + '</td></tr>' +
+      '<tr><td>Refund :</td><td>' + m(c.refund) + '</td></tr>' +
+      '<tr class="strong"><td>Net Bill Amount :</td><td>' + m(c.net) + '</td></tr>' +
+      '</tbody></table></div>' +
+      '<div class="sign"><div>Customer\'s Signature</div><div>For ' + esc(hn) + '</div></div>' +
+      ($('hCity').value.trim() ? '<p class="jur">Subject to &ldquo;' + esc($('hCity').value.trim()) + '&rdquo; jurisdiction only</p>' : '');
+    $('bill').innerHTML = html;
+  }
+
+  function checkHints() {
+    var g = $('hGst').value.trim().toUpperCase();
+    $('hGstHint').textContent = g && !GST_RE.test(g) ? 'The hotel GST No. does not look like a valid 15-character GSTIN.' : '';
+    var cg = $('custGst').value.trim().toUpperCase();
+    $('custGstHint').textContent = cg && !GST_RE.test(cg) ? 'The customer GST No. does not look like a valid 15-character GSTIN.' : '';
+    var a = parseIso($('arrDate').value), d = parseIso($('depDate').value);
+    $('dateHint').textContent = a && d && d < a ? 'Departure date is before the arrival date.' : '';
+  }
+
+  function refresh() { checkHints(); renderBill(); }
+
+  document.querySelectorAll('input[id], select[id]').forEach(function (el) {
+    if (el.closest('#rowsBody')) return;
+    el.addEventListener('input', function () { if (PERSIST.indexOf(el.id) > -1) save(); refresh(); });
+    el.addEventListener('change', function () { if (PERSIST.indexOf(el.id) > -1) save(); refresh(); });
+  });
+
+  $('rowsBody').addEventListener('input', function (e) {
+    var t = e.target;
+    if (t.dataset && t.dataset.i != null) { state.rows[+t.dataset.i][t.dataset.k] = t.value; renderBill(); }
+  });
+  $('rowsBody').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-del]');
+    if (!b) return;
+    state.rows.splice(+b.dataset.del, 1);
+    renderRows(); renderBill();
+  });
+
+  $('addRow').addEventListener('click', function () {
+    var last = state.rows[state.rows.length - 1];
+    var base = last && parseIso(last.date) ? parseIso(last.date) : parseIso($('arrDate').value) || new Date();
+    var next = last && parseIso(last.date) ? new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1) : base;
+    state.rows.push({ date: isoOf(next), rent: $('nightRate').value, epax: '', food: '', laundry: '', other: '' });
+    renderRows(); renderBill();
+  });
+
+  $('fillNights').addEventListener('click', function () {
+    var a = parseIso($('arrDate').value), d = parseIso($('depDate').value);
+    if (!a) { $('dateHint').textContent = 'Choose an arrival date first.'; return; }
+    var rows = [];
+    var cur = new Date(a.getTime());
+    var end = d && d > a ? d : null;
+    if (!end) { rows.push({ date: isoOf(a), rent: $('nightRate').value, epax: '', food: '', laundry: '', other: '' }); }
+    else {
+      var n = 0;
+      while (cur < end && n < 90) {
+        rows.push({ date: isoOf(cur), rent: $('nightRate').value, epax: '', food: '', laundry: '', other: '' });
+        cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1); n++;
+      }
+    }
+    state.rows = rows;
+    renderRows(); refresh();
+  });
+
+  var armed = null;
+  $('newBill').addEventListener('click', function () {
+    var btn = $('newBill');
+    if (!armed) {
+      btn.textContent = 'Click again to clear this bill';
+      btn.classList.add('warn');
+      armed = setTimeout(function () { armed = null; btn.textContent = 'New bill'; btn.classList.remove('warn'); }, 4000);
+      return;
+    }
+    clearTimeout(armed); armed = null;
+    btn.textContent = 'New bill'; btn.classList.remove('warn');
+    var bump = function (id) { var v = $(id).value; var mm = v.match(/^(.*?)(\d+)$/); if (mm) { $(id).value = mm[1] + String(+mm[2] + 1).padStart(mm[2].length, '0'); } };
+    bump('billNo'); bump('regNo');
+    ['roomNo', 'gName', 'company', 'gCity', 'custGst'].forEach(function (id) { $(id).value = ''; });
+    $('pax').value = '1'; $('discount').value = '0'; $('advance').value = '0';
+    $('billDate').value = isoOf(new Date());
+    $('arrDate').value = isoOf(new Date()); $('depDate').value = isoOf(new Date(Date.now() + 86400000));
+    state.rows = [{ date: $('arrDate').value, rent: $('nightRate').value, epax: '', food: '', laundry: '', other: '' }];
+    renderRows(); refresh();
+  });
+
+  renderRows();
+  refresh();
+  var pb = document.getElementById('printBtn'), pn = document.getElementById('printNote'), printed = false;
+  window.addEventListener('beforeprint', function () { printed = true; });
+  pb.addEventListener('click', function () {
+    printed = false; pn.hidden = true;
+    try { window.print(); } catch (e) { /* blocked */ }
+    setTimeout(function () { if (!printed) pn.hidden = false; }, 700);
+  });
+})();
+</script>
+
+</body></html>
