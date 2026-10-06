@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hotel Bill Generator</title>
+<meta name="description" content="Create GST hotel bills with SGST and CGST calculated automatically, and print them on A4.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f4c5c'/%3E%3Cpath d='M9 8h14v16H9z' fill='none' stroke='white' stroke-width='2'/%3E%3Cpath d='M12 13h8M12 17h8M12 21h5' stroke='white' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Libre+Baskerville:wght@400;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="top no-print">
+    <div>
+      <h1>Hotel Bill Generator</h1>
+      <p id="subtitle">GST guest bill with SGST and CGST worked out for you</p>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn" id="newBill">New bill</button>
+      <button type="button" class="btn primary" id="printBtn">Print bill</button><p class="hint" id="printNote" hidden style="flex-basis:100%;margin:0">The print window did not open. Try a desktop browser such as Chrome or Edge, or press Ctrl+P.</p>
+    </div>
+  </header>
+
+  <main class="layout">
+    <div class="panel no-print">
+
+      <section class="card" aria-labelledby="h-hotel">
+        <h2 id="h-hotel">Hotel details</h2>
+        <p class="note">Enter your own hotel's details. They are remembered in this browser.</p>
+        <div class="grid">
+          <label class="wide" for="hName">Hotel name<input id="hName" type="text" value="Your Hotel Name" autocomplete="off"></label>
+          <label class="wide" for="hAddr">Address<input id="hAddr" type="text" value="Street, Locality, City - PIN" autocomplete="off"></label>
+          <label for="hPhone">Phone<input id="hPhone" type="text" value="0000-0000000" autocomplete="off"></label>
+          <label for="hGst">Hotel GST No.<input id="hGst" type="text" value="27AAAAA0000A1Z5" maxlength="15" autocomplete="off"></label>
+          <label for="bBank">Bank name<input id="bBank" type="text" value="Your Bank Name" autocomplete="off"></label>
+          <label for="bBranch">Bank branch<input id="bBranch" type="text" value="Branch name" autocomplete="off"></label>
+          <label for="bAcc">Account no.<input id="bAcc" type="text" value="00000000000" autocomplete="off"></label>
+          <label for="bIfsc">IFSC code<input id="bIfsc" type="text" value="ABCD0123456" maxlength="11" autocomplete="off"></label>
+          <label class="wide" for="hCity">Jurisdiction city<input id="hCity" type="text" value="Your City" autocomplete="off"></label>
+        </div>
+        <p class="hint" id="hGstHint"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-guest">
+        <h2 id="h-guest">Bill and guest</h2>
+        <div class="grid">
+          <label for="regNo">Reg. No.<input id="regNo" type="text" value="0001" autocomplete="off"></label>
+          <label for="roomNo">Room No.<input id="roomNo" type="text" value="101" autocomplete="off"></label>
+          <label for="billNo">Bill No.<input id="billNo" type="text" value="0001" autocomplete="off"></label>
+          <label for="billDate">Bill date<input id="billDate" type="date"></label>
+          <label class="wide" for="gName">Name of guest<input id="gName" type="text" value="Sample Guest" autocomplete="off"></label>
+          <label class="wide" for="company">Company / address<input id="company" type="text" value="Sample Company Private Limited" autocomplete="off"></label>
+          <label for="gCity">City<input id="gCity" type="text" value="Pune" autocomplete="off"></label>
+          <label for="pax">PAX<input id="pax" type="number" min="1" step="1" value="1"></label>
+          <label class="wide" for="custGst">Customer GST No. (optional)<input id="custGst" type="text" value="" maxlength="15" placeholder="15-character GSTIN" autocomplete="off"></label>
+        </div>
+        <p class="hint" id="custGstHint"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-stay">
+        <h2 id="h-stay">Stay and charges</h2>
+        <div class="grid">
+          <label for="arrDate">Arrival date<input id="arrDate" type="date"></label>
+          <label for="arrTime">Arrival time<input id="arrTime" type="time" value="14:00"></label>
+          <label for="depDate">Departure date<input id="depDate" type="date"></label>
+          <label for="depTime">Departure time<input id="depTime" type="time" value="11:00"></label>
+        </div>
+        <p class="hint" id="dateHint"></p>
+        <div class="grid">
+          <label for="nightRate">Room rate per night (Rs)<input id="nightRate" type="number" min="0" step="0.01" value="1500"></label>
+          <label for="rentMode">Rate and rent entries are
+            <select id="rentMode">
+              <option value="incl">Inclusive of GST</option>
+              <option value="excl">Before GST</option>
+            </select>
+          </label>
+          <label for="taxRate">SGST and CGST, each (%)<input id="taxRate" type="number" min="0" step="0.01" value="2.5"></label>
+        </div>
+        <p class="note">GST is charged on rent and extra pax. Food, laundry and other charges are added as entered.</p>
+        <div class="rows-wrap">
+          <table class="rows">
+            <thead><tr><th>Date</th><th>Rent</th><th>Extra pax</th><th>Food</th><th>Laundry</th><th>Other</th><th><span class="sr-only" style="position:absolute;left:-9999px">Remove</span></th></tr></thead>
+            <tbody id="rowsBody"></tbody>
+          </table>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="btn" id="fillNights">Fill nights from stay dates</button>
+          <button type="button" class="btn" id="addRow">Add row</button>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="h-settle">
+        <h2 id="h-settle">Settlement</h2>
+        <div class="grid">
+          <label for="discount">Discount (Rs)<input id="discount" type="number" min="0" step="0.01" value="0"></label>
+          <label for="advance">Advance paid (Rs)<input id="advance" type="number" min="0" step="0.01" value="1500"></label>
+        </div>
+        <p class="note">The bill amount is rounded to the nearest rupee. If the advance is more than the bill, the difference shows as refund.</p>
+      </section>
+    </div>
+
+    <section class="preview" aria-label="Bill preview">
+      <div class="preview-label no-print">Live bill preview</div>
+      <div class="paper-scroll">
+        <article class="paper" id="bill"></article>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
